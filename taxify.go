@@ -357,7 +357,6 @@ func initializeFederal(income *float64, numSteps *int) State {
 
 func main() {
 	income := flag.Float64("income", 0, "Annual taxable income")
-	ascending := flag.Bool("ascending", false, "Sort the output in ascending order?")
 	toCSV := flag.Bool("csv", false, "Write the output to a CSV file?")
 	numSteps := flag.Int("steps", 100, "The number of discrete points between 0 and income for CSV output")
 	flag.Parse()
@@ -365,15 +364,9 @@ func main() {
 	states := initializeStates(income, numSteps)
 	federal := initializeFederal(income, numSteps)
 
-	if *ascending {
-		sort.SliceStable(states[:], func(i, j int) bool {
-			return states[i].incomeTax < states[j].incomeTax
-		})
-	} else {
-		sort.SliceStable(states[:], func(i, j int) bool {
-			return states[i].incomeTax > states[j].incomeTax
-		})
-	}
+	sort.SliceStable(states[:], func(i, j int) bool {
+		return states[i].incomeTax < states[j].incomeTax
+	})
 
 	printResults(income, &federal, states)
 
