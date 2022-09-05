@@ -419,13 +419,11 @@ func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*Sta
 			data[i+1][j+2] = strconv.FormatFloat(rate, 'f', 6, 32)
 		}
 	}
-	path := fmt.Sprintf(
-		"./output/csv/income=%.0f_steps=%d.csv", *income, *numSteps)
-	file, err := os.Create(path)
+	file, err := os.Create(fmt.Sprintf("./output/csv/income=%.0f_steps=%d.csv", *income, *numSteps))
 	if err != nil {
-		fmt.Println("Error creating file")
 		panic(err)
 	}
+	defer file.Close()
 	w := csv.NewWriter(file)
 	for _, record := range data {
 		if err := w.Write(record); err != nil {
@@ -434,11 +432,9 @@ func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*Sta
 	}
 	// Write any buffered data to the underlying writer (standard output).
 	w.Flush()
-	file.Close()
 	if err := w.Error(); err != nil {
 		panic(err)
 	}
-
 }
 
 func getIncomeArray(income *float64, numSteps int) *[]float64 {
