@@ -391,10 +391,10 @@ func printResults(income *float64, federal *State, states *[51]*State) {
 	fmt.Printf("\n50-State income tax report for income of $%.0f\n", *income)
 	fmt.Println("    State                Tax       Effective Rate")
 	fmt.Println("==================================================")
-	fmt.Printf("*   %-20s $%-8d %.3f%%\n", federal.name, federal.incomeTax, 100*federal.effectiveRate)
+	fmt.Printf("*   %-20s $%-8d %.3f%%\n", federal.name, federal.incomeTax, federal.effectiveRate)
 	fmt.Println("==================================================")
 	for i := 0; i < 51; i++ {
-		fmt.Printf("%-3d %-20s $%-8d %.3f%%\n", i+1, states[i].name, states[i].incomeTax, 100*states[i].effectiveRate)
+		fmt.Printf("%-3d %-20s $%-8d %.3f%%\n", i+1, states[i].name, states[i].incomeTax, states[i].effectiveRate)
 	}
 	fmt.Println("==================================================")
 }
@@ -410,16 +410,21 @@ func plotResults(income *float64, numSteps *int, surround bool, top *int, federa
 	}
 	plot, _ := glot.NewPlot(2, false, false)
 	style := "lines" // can also do `points`, though that gets cluttered quickly
-	for _, state := range states[:*top] {
-		plot.AddPointGroup(state.abbrev, style, [][]float64{*incomeArray, state.effectiveRates})
-	}
-	plot.AddPointGroup("Federal", style, [][]float64{*incomeArray, federal.effectiveRates})
 	plot.SetTitle("Effective tax rate in different states from $0 to $1M in income")
 	plot.SetXLabel("Ordinary Income")
 	plot.SetYLabel("Effective Tax Rate")
-	for {
-		// delay to manually inspect and export the chart
+	plot.SetXrange(0, int(*income))
+	plot.SetYrange(0, 30)
+
+	for i := 0; i < *numSteps; i++ {
+		for _, state := range states[:*top] {
+			plot.AddPointGroup(state.abbrev, style, [][]float64{(*incomeArray)[:i], state.effectiveRates[:i]})
+		}
+		plot.AddPointGroup("Federal", style, [][]float64{(*incomeArray)[:i], federal.effectiveRates[:i]})
+		plot.ResetPlot()
+		// time.Sleep(25 * time.Millisecond)
 	}
+
 }
 
 func getIncomeArray(income *float64, surround bool, numSteps int) *[]float64 {
@@ -448,5 +453,5 @@ func (state *State) calcIncomeTax(income *float64) (int, float64) {
 			tax += math.Min(float64(state.brackets[i+1]-bracket), math.Max(0, *income-float64(bracket))) * state.rates[i]
 		}
 	}
-	return int(tax), tax / float64(*income)
+	return int(tax), 100 * tax / float64(*income)
 }
