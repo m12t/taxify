@@ -8,23 +8,22 @@ https://taxfoundation.org/state-income-tax-rates-2022/
 package main
 
 import (
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"math"
+	"os"
 	"sort"
-
-	"github.com/Arafatk/glot"
+	"strconv"
 )
 
 type State struct {
-	name           string
-	abbrev         string
-	brackets       []int
-	rates          []float64
-	effectiveRate  float64   // for the given income
-	incomeTax      int       // for the given income
-	effectiveRates []float64 // optional, only used if plotting
-	incomeTaxes    []int     // optional, only used if plotting
+	name          string
+	abbrev        string
+	brackets      []int
+	rates         []float64
+	effectiveRate float64
+	incomeTax     int
 }
 
 func initializeStates(income *float64, numSteps *int) *[51]*State {
@@ -340,8 +339,6 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 		tax, effectiveRate := state.calcIncomeTax(income)
 		state.incomeTax = tax
 		state.effectiveRate = effectiveRate
-		state.effectiveRates = make([]float64, *numSteps)
-		state.incomeTaxes = make([]int, *numSteps)
 	}
 	return &states
 }
@@ -355,18 +352,16 @@ func initializeFederal(income *float64, numSteps *int) State {
 	tax, effectiveRate := federal.calcIncomeTax(income)
 	federal.incomeTax = tax
 	federal.effectiveRate = effectiveRate
-	federal.effectiveRates = make([]float64, *numSteps)
-	federal.incomeTaxes = make([]int, *numSteps)
 	return federal
 }
 
 func main() {
 	income := flag.Float64("income", 0, "Annual taxable income")
 	ascending := flag.Bool("ascending", false, "Sort the output in ascending order?")
-	plot := flag.Bool("plot", false, "plot the effective rates in all states")
-	top := flag.Int("top", 7, "plot the top x states as ordered by the optional `ascending` flag (default is descending)")
-	numSteps := flag.Int("steps", 100, "specify the number of discrete points to use when plotting effective rate over income")
-	surround := flag.Bool("surround", false, "only plot values surrounding income by ±25%%")
+	toCSV := flag.Bool("csv", false, "Write the output to a CSV file?")
+	top := flag.Int("top", 7, "Use only the the top x states in the prespecified order")
+	numSteps := flag.Int("steps", 100, "The number of discrete points between 0 and income for CSV output")
+	surround := flag.Bool("surround", false, "Only generate values surrounding income by ±25%%?")
 	flag.Parse()
 
 	states := initializeStates(income, numSteps)
@@ -382,8 +377,8 @@ func main() {
 		})
 	}
 	printResults(income, &federal, states)
-	if *plot {
-		plotResults(income, numSteps, *surround, top, &federal, states)
+	if *toCSV {
+		writeToCSV(income, numSteps, *surround, top, &federal, states)
 	}
 }
 
@@ -391,45 +386,61 @@ func printResults(income *float64, federal *State, states *[51]*State) {
 	fmt.Printf("\n50-State income tax report for income of $%.0f\n", *income)
 	fmt.Println("    State                Tax       Effective Rate")
 	fmt.Println("==================================================")
-	fmt.Printf("*   %-20s $%-8d %.3f%%\n", federal.name, federal.incomeTax, federal.effectiveRate)
+	fmt.Printf("*   %-20s $%-8d %.3f%%\n", federal.name, federal.incomeTax, 100*federal.effectiveRate)
 	fmt.Println("==================================================")
 	for i := 0; i < 51; i++ {
-		fmt.Printf("%-3d %-20s $%-8d %.3f%%\n", i+1, states[i].name, states[i].incomeTax, states[i].effectiveRate)
+		fmt.Printf("%-3d %-20s $%-8d %.3f%%\n", i+1, states[i].name, states[i].incomeTax, 100*states[i].effectiveRate)
 	}
 	fmt.Println("==================================================")
 }
 
-func plotResults(income *float64, numSteps *int, surround bool, top *int, federal *State, states *[51]*State) {
-	// income will either be 0 or some value.
-	incomeArray := getIncomeArray(income, surround, *numSteps)
+func writeToCSV(income *float64, numSteps *int, surround bool, top *int, federal *State, states *[51]*State) {
+	// create an array of incomes sliced into `numSteps` steps
+	incomeArray := *getIncomeArray(income, surround, *numSteps)
+
+	// create the 2D array at runtime with make()
+	data := make([][]string, *numSteps+1)
+	for i := range data {
+		data[i] = make([]string, 53)
+	}
+
+	// add the label headers of income, [51]states+DC, Federal
+	data[0][0] = "income"
+	for i := 1; i <= len(states); i++ {
+		// there are 53 columns: income + 50 states + DC + Federal
+		data[0][i] = (*states)[i-1].abbrev
+	}
+	data[0][len(states)+1] = "federal"
+
+	// add the data for each state at each income
 	for i := 0; i < *numSteps; i++ {
-		for _, state := range *states {
-			state.incomeTaxes[i], state.effectiveRates[i] = state.calcIncomeTax(&(*incomeArray)[i])
+		data[i+1][0] = strconv.FormatFloat(incomeArray[i], 'f', -1, 32)
+		for j, state := range *states {
+			_, rate := state.calcIncomeTax(&incomeArray[i])
+			data[i+1][j+1] = strconv.FormatFloat(rate, 'f', -1, 32)
 		}
-		federal.incomeTaxes[i], federal.effectiveRates[i] = federal.calcIncomeTax(&(*incomeArray)[i])
+		_, rate := federal.calcIncomeTax(&incomeArray[i])
+		data[i+1][len(states)+1] = strconv.FormatFloat(rate, 'f', -1, 32)
 	}
-	plot, _ := glot.NewPlot(2, false, false)
-	plot.Cmd("set terminal pngcairo size 1440,900")
-	style := "lines" // can also do `points`, though that gets cluttered quickly
-	plot.SetTitle("Effective tax rate in different states from $0 to $1M in income")
-	plot.SetXLabel("Ordinary Income")
-	plot.SetYLabel("Effective Tax Rate")
-	plot.SetXrange(0, int(*income))
-	plot.SetYrange(0, 14)
-
-	for i := 1; i < *numSteps; i++ {
-		sort.SliceStable(states[:], func(j, k int) bool {
-			return states[j].effectiveRates[i-1] > states[k].effectiveRates[i-1]
-		})
-		for _, state := range states[:*top] {
-			plot.AddPointGroup(state.abbrev, style, [][]float64{(*incomeArray)[:i], state.effectiveRates[:i]})
+	// file, err := os.Create(fmt.Sprintf("./output/csv/top%d/%dsteps/surround=%v/income.csv", *top, *numSteps, surround))
+	file, err := os.Create("./output/csv/test.csv")
+	if err != nil {
+		fmt.Println("Error creating file")
+		panic(err)
+	}
+	w := csv.NewWriter(file)
+	for _, record := range data {
+		if err := w.Write(record); err != nil {
+			panic(err)
 		}
-		// plot.AddPointGroup("Federal", style, [][]float64{(*incomeArray)[:i], federal.effectiveRates[:i]})
-		// path := fmt.Sprintf("./plots/auto/%d.png", i)
-		// plot.SavePlot(path)
-		plot.ResetPlot()
-
 	}
+	// Write any buffered data to the underlying writer (standard output).
+	w.Flush()
+	file.Close()
+	if err := w.Error(); err != nil {
+		panic(err)
+	}
+	fmt.Println("done...?")
 
 }
 
@@ -438,7 +449,7 @@ func getIncomeArray(income *float64, surround bool, numSteps int) *[]float64 {
 	stepSize := *income / float64(numSteps)
 	incomes := make([]float64, numSteps)
 	if *income != 0 && surround {
-		// income is nonzero, plot ±25% around income
+		// income is nonzero, grab ±25% around income
 		low = float64(*income) * 0.75
 		high := float64(*income) * 1.25
 		stepSize = (high - low) / (float64(numSteps) - 1.0)
@@ -459,5 +470,5 @@ func (state *State) calcIncomeTax(income *float64) (int, float64) {
 			tax += math.Min(float64(state.brackets[i+1]-bracket), math.Max(0, *income-float64(bracket))) * state.rates[i]
 		}
 	}
-	return int(tax), 100 * tax / float64(*income)
+	return int(tax), tax / float64(*income)
 }

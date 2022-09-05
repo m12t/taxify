@@ -8,7 +8,7 @@
     - `-ascending=true` will rank the states from lowest to highest total income tax for the given income.
     - `-numSteps=x` is less important, and specifies the number of discrete calculations to be made between $0 and `income` to use when plotting. A higher value will lead to a smoother and more accurate plot, but there's diminishing returns. The default is 100, which works quite well.
 An example plot:
-![Plot of effective tax from $0 to $1M in ordinary income](https://github.com/m12t/taxify/blob/main/plots/plot.png)
+![Plot of effective tax from $0 to $1M in ordinary income](https://github.com/m12t/taxify/blob/main/output/plots/plot.png)
 
 Example output to the terminal:
-![Terminal output](https://github.com/m12t/taxify/blob/main/plots/example_output.png)
+![Terminal output](https://github.com/m12t/taxify/blob/main/output/plots/example_output.png)
