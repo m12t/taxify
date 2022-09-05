@@ -365,7 +365,7 @@ func main() {
 	federal := initializeFederal(income, numSteps)
 
 	sort.SliceStable(states[:], func(i, j int) bool {
-		return states[i].incomeTax < states[j].incomeTax
+		return states[i].effectiveRate > states[j].effectiveRate
 	})
 
 	printResults(income, &federal, states)
