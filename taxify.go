@@ -406,26 +406,29 @@ func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*Sta
 
 	// add the label headers of income, [51]states+DC, Federal
 	data[0][0] = "income"
-	for i := 1; i <= len(states); i++ {
+	data[0][1] = "federal"
+	for i := 0; i < len(states); i++ {
 		// there are 53 columns: income + 50 states + DC + Federal
-		data[0][i] = (*states)[i-1].abbrev
+		data[0][i+2] = (*states)[i].abbrev
 	}
-	data[0][len(states)+1] = "federal"
 
-	// add the data for each state at each income
 	for i := 0; i < *numSteps; i++ {
+		// add the income level for this row
 		data[i+1][0] = strconv.FormatFloat(incomeArray[i], 'f', 2, 32)
+
+		// add the federal effective rate for this income level
+		_, rate := federal.calcIncomeTax(&incomeArray[i])
+		data[i+1][1] = strconv.FormatFloat(rate, 'f', 6, 32)
+
+		// add all 50 States' + DC's effective rate for this income level
 		for j, state := range *states {
 			_, rate := state.calcIncomeTax(&incomeArray[i])
-			data[i+1][j+1] = strconv.FormatFloat(rate, 'f', 6, 32)
+			data[i+1][j+2] = strconv.FormatFloat(rate, 'f', 6, 32)
 		}
-		_, rate := federal.calcIncomeTax(&incomeArray[i])
-		data[i+1][len(states)+1] = strconv.FormatFloat(rate, 'f', 6, 32)
 	}
 	path := fmt.Sprintf(
 		"./output/csv/income=%.0f_steps=%d.csv", *income, *numSteps)
 	file, err := os.Create(path)
-	// file, err := os.Create("./output/csv/test.csv")
 	if err != nil {
 		fmt.Println("Error creating file")
 		panic(err)
