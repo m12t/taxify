@@ -359,9 +359,7 @@ func main() {
 	income := flag.Float64("income", 0, "Annual taxable income")
 	ascending := flag.Bool("ascending", false, "Sort the output in ascending order?")
 	toCSV := flag.Bool("csv", false, "Write the output to a CSV file?")
-	top := flag.Int("top", 7, "Use only the the top x states in the prespecified order")
 	numSteps := flag.Int("steps", 100, "The number of discrete points between 0 and income for CSV output")
-	surround := flag.Bool("surround", false, "Only generate values surrounding income by ±25%%?")
 	flag.Parse()
 
 	states := initializeStates(income, numSteps)
@@ -376,9 +374,11 @@ func main() {
 			return states[i].incomeTax > states[j].incomeTax
 		})
 	}
+
 	printResults(income, &federal, states)
+
 	if *toCSV {
-		writeToCSV(income, numSteps, *surround, top, &federal, states)
+		writeToCSV(income, numSteps, &federal, states)
 	}
 }
 
@@ -394,9 +394,9 @@ func printResults(income *float64, federal *State, states *[51]*State) {
 	fmt.Println("==================================================")
 }
 
-func writeToCSV(income *float64, numSteps *int, surround bool, top *int, federal *State, states *[51]*State) {
+func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*State) {
 	// create an array of incomes sliced into `numSteps` steps
-	incomeArray := *getIncomeArray(income, surround, *numSteps)
+	incomeArray := *getIncomeArray(income, *numSteps)
 
 	// create the 2D array at runtime with make()
 	data := make([][]string, *numSteps+1)
@@ -414,16 +414,18 @@ func writeToCSV(income *float64, numSteps *int, surround bool, top *int, federal
 
 	// add the data for each state at each income
 	for i := 0; i < *numSteps; i++ {
-		data[i+1][0] = strconv.FormatFloat(incomeArray[i], 'f', -1, 32)
+		data[i+1][0] = strconv.FormatFloat(incomeArray[i], 'f', 2, 32)
 		for j, state := range *states {
 			_, rate := state.calcIncomeTax(&incomeArray[i])
-			data[i+1][j+1] = strconv.FormatFloat(rate, 'f', -1, 32)
+			data[i+1][j+1] = strconv.FormatFloat(rate, 'f', 6, 32)
 		}
 		_, rate := federal.calcIncomeTax(&incomeArray[i])
-		data[i+1][len(states)+1] = strconv.FormatFloat(rate, 'f', -1, 32)
+		data[i+1][len(states)+1] = strconv.FormatFloat(rate, 'f', 6, 32)
 	}
-	// file, err := os.Create(fmt.Sprintf("./output/csv/top%d/%dsteps/surround=%v/income.csv", *top, *numSteps, surround))
-	file, err := os.Create("./output/csv/test.csv")
+	path := fmt.Sprintf(
+		"./output/csv/income=%.0f_steps=%d.csv", *income, *numSteps)
+	file, err := os.Create(path)
+	// file, err := os.Create("./output/csv/test.csv")
 	if err != nil {
 		fmt.Println("Error creating file")
 		panic(err)
@@ -440,22 +442,14 @@ func writeToCSV(income *float64, numSteps *int, surround bool, top *int, federal
 	if err := w.Error(); err != nil {
 		panic(err)
 	}
-	fmt.Println("done...?")
 
 }
 
-func getIncomeArray(income *float64, surround bool, numSteps int) *[]float64 {
-	low := 0.0
+func getIncomeArray(income *float64, numSteps int) *[]float64 {
 	stepSize := *income / float64(numSteps)
 	incomes := make([]float64, numSteps)
-	if *income != 0 && surround {
-		// income is nonzero, grab ±25% around income
-		low = float64(*income) * 0.75
-		high := float64(*income) * 1.25
-		stepSize = (high - low) / (float64(numSteps) - 1.0)
-	}
 	for i := 0; i < numSteps; i++ {
-		incomes[i] = float64(low + stepSize*float64(i+1))
+		incomes[i] = float64(stepSize * float64(i+1))
 	}
 	return &incomes
 }
