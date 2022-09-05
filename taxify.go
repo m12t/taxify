@@ -409,13 +409,13 @@ func plotResults(income *float64, numSteps *int, surround bool, top *int, federa
 		federal.incomeTaxes[i], federal.effectiveRates[i] = federal.calcIncomeTax(&(*incomeArray)[i])
 	}
 	plot, _ := glot.NewPlot(2, false, false)
+	plot.Cmd("set terminal pngcairo size 1440,900")
 	style := "lines" // can also do `points`, though that gets cluttered quickly
 	plot.SetTitle("Effective tax rate in different states from $0 to $1M in income")
 	plot.SetXLabel("Ordinary Income")
 	plot.SetYLabel("Effective Tax Rate")
 	plot.SetXrange(0, int(*income))
 	plot.SetYrange(0, 14)
-	// plot.Cmd("set terminal pngcairo size 1440,900")
 
 	for i := 1; i < *numSteps; i++ {
 		sort.SliceStable(states[:], func(j, k int) bool {
@@ -425,8 +425,10 @@ func plotResults(income *float64, numSteps *int, surround bool, top *int, federa
 			plot.AddPointGroup(state.abbrev, style, [][]float64{(*incomeArray)[:i], state.effectiveRates[:i]})
 		}
 		// plot.AddPointGroup("Federal", style, [][]float64{(*incomeArray)[:i], federal.effectiveRates[:i]})
+		// path := fmt.Sprintf("./plots/auto/%d.png", i)
+		// plot.SavePlot(path)
 		plot.ResetPlot()
-		// time.Sleep(25 * time.Millisecond)
+
 	}
 
 }
