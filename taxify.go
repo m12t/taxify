@@ -414,13 +414,17 @@ func plotResults(income *float64, numSteps *int, surround bool, top *int, federa
 	plot.SetXLabel("Ordinary Income")
 	plot.SetYLabel("Effective Tax Rate")
 	plot.SetXrange(0, int(*income))
-	plot.SetYrange(0, 30)
+	plot.SetYrange(0, 14)
+	// plot.Cmd("set terminal pngcairo size 1440,900")
 
-	for i := 0; i < *numSteps; i++ {
+	for i := 1; i < *numSteps; i++ {
+		sort.SliceStable(states[:], func(j, k int) bool {
+			return states[j].effectiveRates[i-1] > states[k].effectiveRates[i-1]
+		})
 		for _, state := range states[:*top] {
 			plot.AddPointGroup(state.abbrev, style, [][]float64{(*incomeArray)[:i], state.effectiveRates[:i]})
 		}
-		plot.AddPointGroup("Federal", style, [][]float64{(*incomeArray)[:i], federal.effectiveRates[:i]})
+		// plot.AddPointGroup("Federal", style, [][]float64{(*incomeArray)[:i], federal.effectiveRates[:i]})
 		plot.ResetPlot()
 		// time.Sleep(25 * time.Millisecond)
 	}
