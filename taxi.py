@@ -1,9 +1,19 @@
+"""
+A Python script for manipulating the CSV data returned by `taxify.go`.
+
+* This script accepts CLI arguments in the same format as the Go file.
+  As such, it can decode them in the same way and access the exact CSV
+  file that was created by the Go program, given the same inputs.
+
+"""
 import argparse
+import pandas as pd
 
 
 def main(args: list) -> None:
-    with open(get_filepath(args.income, args.steps), "r") as f:
-        print(f.read())
+    df = pd.read_csv(get_filepath(args.income, args.steps))
+    df.info()
+    print(df)
 
 
 def get_filepath(income: int, steps: int) -> str:
