@@ -1339,14 +1339,14 @@ func writeToCSV(income, capitalGains, dividends float64,
 
 		// add the federal effective rate for this income level
 		// calcFederalIncomeTax(income, capitalGains, dividends *float64, mfj, qualified bool) (int, float64)
-		_, rate := federal.calcFederalIncomeTax(incomeArray[i], capitalGains, dividends, mfj, qualified)
+		federalTax, rate := federal.calcFederalIncomeTax(incomeArray[i], capitalGains, dividends, mfj, qualified)
 		data[i+1][1] = strconv.FormatFloat(rate, 'f', 6, 32)
 
 		// add all 50 States' + DC's effective rate for this income level
 		for j, state := range *states {
 			_, rate := state.calcIncomeTax(
 				&incomeArray[i], &capitalGainsArray[i], &dividendsArray[i],
-				federal.incomeTax, numDependents, mfj)
+				federalTax, numDependents, mfj)
 			data[i+1][j+2] = strconv.FormatFloat(rate, 'f', 6, 32)
 		}
 	}
@@ -1444,6 +1444,7 @@ func (state *State) calcIncomeTax(income, capitalGains, dividends *float64,
 		}
 
 	}
+	fmt.Printf("income: %.0f for the state %s\n", taxableIncome, state.name)
 	tax += taxEngine(&taxableIncome, &data.brackets, &data.rates)
 	tax = math.Max(0, tax) // assert tax >= 0
 	return int(tax), tax / float64(*income)
