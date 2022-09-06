@@ -262,3 +262,24 @@ func calcHawaiiTax(income, capitalGains, dividends *float64,
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
+
+func calcIdahoTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 1588, 4763, 7939}
+	rates := []float64{0.01, 0.03, 0.045, 0.06}
+	standardDeduction := 12950
+	if mfj {
+		brackets = []int{0, 3176, 9526, 15878}
+		standardDeduction = 25900
+	}
+
+	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
