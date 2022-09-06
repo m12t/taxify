@@ -39,7 +39,6 @@ type State struct {
 }
 
 // *[1] {ordinary, capital gains, dividends/interest} *negative means special case
-// if ordinary is negative, it's one of 6 states that allow federal taxes to be deducted from state
 // if capital gains is negative, a deduction of x is applied to capital gains before adding it to taxableIncome
 
 type FedFilingStatus struct {
@@ -368,7 +367,7 @@ func initializeStates(income, capitalGains, dividends *float64,
 			dependentIsCredit:    true,
 			stdDeductionIsCredit: false,
 			exemptionIsCredit:    true,
-			incomeTypesTaxed:     []float32{-1.0, 1.0, 1.0},
+			incomeTypesTaxed:     []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 1743, 3486, 6972, 15687, 26145, 34860, 52290, 78435},
 				rates:             []float64{0.0033, 0.0067, 0.0225, 0.0414, 0.0563, 0.0596, 0.0625, 0.0744, 0.0853},
@@ -431,7 +430,7 @@ func initializeStates(income, capitalGains, dividends *float64,
 			dependentIsCredit:    false,
 			stdDeductionIsCredit: false,
 			exemptionIsCredit:    false,
-			incomeTypesTaxed:     []float32{-1.0, 1.0, 1.0},
+			incomeTypesTaxed:     []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 12500, 50000},
 				rates:             []float64{0.0185, 0.035, 0.0425},
@@ -578,7 +577,7 @@ func initializeStates(income, capitalGains, dividends *float64,
 			dependentIsCredit:    false,
 			stdDeductionIsCredit: false,
 			exemptionIsCredit:    false,
-			incomeTypesTaxed:     []float32{-1.0, 1.0, 1.0},
+			incomeTypesTaxed:     []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{108, 1088, 2176, 3264, 4352, 5440, 6528, 7616, 8704},
 				rates:             []float64{0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.054},
@@ -599,7 +598,7 @@ func initializeStates(income, capitalGains, dividends *float64,
 			dependentIsCredit:    false,
 			stdDeductionIsCredit: false,
 			exemptionIsCredit:    false,
-			incomeTypesTaxed:     []float32{-1.0, 1.0, 1.0}, // 2% credit on capital gains (ignored for now)
+			incomeTypesTaxed:     []float32{1.0, 1.0, 1.0}, // 2% credit on capital gains (ignored for now)
 			single: FilingStatus{
 				brackets:          []int{0, 3100, 5500, 8400, 11400, 14600, 18800},
 				rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.0675},
@@ -830,7 +829,7 @@ func initializeStates(income, capitalGains, dividends *float64,
 			dependentIsCredit:    true,
 			stdDeductionIsCredit: false,
 			exemptionIsCredit:    true,
-			incomeTypesTaxed:     []float32{-1.0, 1.0, 1.0},
+			incomeTypesTaxed:     []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 3650, 9200, 125000},
 				rates:             []float64{0.0475, 0.0675, 0.0875, 0.099},
