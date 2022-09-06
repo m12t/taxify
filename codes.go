@@ -640,3 +640,30 @@ func calcMontanaTax(income, capitalGains, dividends *float64,
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
+
+func calcNebraskaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 3440, 20590, 33180}
+	rates := []float64{0.0246, 0.0351, 0.0501, 0.0684}
+	dependentExemption := 146
+	standardDeduction := 7350
+	personalExemption := 146
+	if mfj {
+		brackets = []int{0, 6860, 41190, 66360}
+		standardDeduction = 14700
+		personalExemption = 292
+	}
+
+	tax -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	taxableIncome -= float64(standardDeduction)
+	tax -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
+	return int(tax), tax / grossIncome
+}
