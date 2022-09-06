@@ -17,22 +17,6 @@ import (
 	"strconv"
 )
 
-type State struct {
-	name               string
-	abbrev             string
-	dependentExemption int
-	dependentIsCredit  bool
-	incomeTypesTaxed   []float32 // ** see below
-	single             FilingStatus
-	couple             FilingStatus
-	effectiveRate      float64
-	incomeTax          int
-}
-
-// ** {ordinary, capital gains, dividends/interest} *negative means special case
-// if ordinary is negative, it's one of 6 states that allow federal taxes to be deducted from state
-// if capital gains is negative, a deduction of x is applied to capital gains before adding it to income
-
 type FilingStatus struct {
 	brackets          []int
 	rates             []float64
@@ -42,7 +26,45 @@ type FilingStatus struct {
 	exemptionIsCredit bool
 }
 
-func initializeStates(income, capitalGains, dividends *float64, numSteps *int, mfj bool) *[51]*State {
+type State struct {
+	name               string
+	abbrev             string
+	dependentExemption int
+	dependentIsCredit  bool
+	incomeTypesTaxed   []float32 // *[1] see below
+	single             FilingStatus
+	couple             FilingStatus
+	effectiveRate      float64
+	incomeTax          int
+}
+
+type FedFilingStatus struct {
+	// if dividends are qualified, they get added to capital gains instead of income
+	incomeBrackets       []int
+	incomeRates          []float64
+	capitalGainsBrackets []int
+	capitalGainsRates    []float64
+	standardDeduction    int
+}
+
+type Federal struct {
+	name               string
+	abbrev             string
+	medicareRate       float64 // 0.0145
+	socialSecurityRate float64 // 0.062
+	socialSecurityCap  int     // $147,000 of income == $9114 collected
+	single             FedFilingStatus
+	couple             FedFilingStatus
+	effectiveRate      float64
+	incomeTax          int
+}
+
+// [1] {ordinary, capital gains, dividends/interest} *negative means special case
+// if ordinary is negative, it's one of 6 states that allow federal taxes to be deducted from state
+// if capital gains is negative, a deduction of x is applied to capital gains before adding it to income
+
+func initializeStates(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) *[51]*State {
 	states := [51]*State{
 		{
 			name:               "Alabama",
@@ -1219,46 +1241,66 @@ func initializeStates(income, capitalGains, dividends *float64, numSteps *int, m
 		},
 	}
 	for _, state := range states {
-		tax, effectiveRate := state.calcIncomeTax(income, capitalGains, dividends)
-		state.incomeTax = tax
-		state.effectiveRate = effectiveRate
+		state.incomeTax, state.effectiveRate = state.calcIncomeTax(
+			income, capitalGains, dividends, federalTax, numDependents, mfj)
 	}
 	return &states
 }
 
-func initializeFederal(income *float64, numSteps *int) State {
-	federal := State{
-		name:     "Federal",
-		brackets: []int{0, 10275, 41775, 89075, 170050, 215950, 539900},
-		rates:    []float64{0.10, 0.12, 0.22, 0.24, 0.32, 0.35, 0.37},
+func initializeFederal(income, capitalGains, dividends *float64, mfj, qualified bool) *Federal {
+	federal := Federal{
+		name:               "Federal",
+		abbrev:             "USA",
+		medicareRate:       0.0145,
+		socialSecurityRate: 0.062,
+		socialSecurityCap:  147000, // of taxable income
+		single: FedFilingStatus{
+			incomeBrackets:       []int{0, 10275, 41775, 89075, 170050, 215950, 539900},
+			incomeRates:          []float64{0.10, 0.12, 0.22, 0.24, 0.32, 0.35, 0.37},
+			capitalGainsBrackets: []int{0, 41675, 459750},
+			capitalGainsRates:    []float64{0.0, 0.15, 0.20},
+			standardDeduction:    12950,
+		},
+		couple: FedFilingStatus{
+			incomeBrackets:       []int{0, 20550, 83550, 178150, 340100, 431900, 647850},
+			incomeRates:          []float64{0.10, 0.12, 0.22, 0.24, 0.32, 0.35, 0.37},
+			capitalGainsBrackets: []int{0, 83350, 517200},
+			capitalGainsRates:    []float64{0.0, 0.15, 0.20},
+			standardDeduction:    25900,
+		},
 	}
-	tax, effectiveRate := federal.calcIncomeTax(income)
-	federal.incomeTax = tax
-	federal.effectiveRate = effectiveRate
-	return federal
+	federal.incomeTax, federal.effectiveRate = federal.calcFederalIncomeTax(
+		*income, *capitalGains, *dividends, mfj, qualified)
+	return &federal
 }
 
 func main() {
 	income := flag.Float64("income", 0, "Annual taxable income")
+	capitalGains := flag.Float64("cg", 0, "Capital Gains earned")
+	dividends := flag.Float64("interest", 0, "Dividends and interest earned")
+	qualified := flag.Bool("qualified", false, "Are the dividends qualified? (default false)")
 	toCSV := flag.Bool("csv", false, "Write the output to a CSV file?")
 	numSteps := flag.Int("steps", 100, "The number of discrete points between 0 and income for CSV output")
+	mfj := flag.Bool("joint", false, "Married filing jointly? (default false)")
+	numDependents := flag.Int("dependents", 0, "number of dependents (default 0)")
 	flag.Parse()
 
-	states := initializeStates(income, numSteps)
-	federal := initializeFederal(income, numSteps)
+	federal := initializeFederal(income, capitalGains, dividends, *mfj, *qualified)
+	states := initializeStates(income, capitalGains, dividends, federal.incomeTax, *numDependents, *mfj)
 
 	sort.SliceStable(states[:], func(i, j int) bool {
 		return states[i].effectiveRate > states[j].effectiveRate
 	})
 
-	printResults(income, &federal, states)
+	printResults(income, federal, states)
 
 	if *toCSV {
-		writeToCSV(income, numSteps, &federal, states)
+		writeToCSV(*income, *capitalGains, *dividends, *numSteps,
+			*numDependents, federal, states, *mfj, *qualified)
 	}
 }
 
-func printResults(income *float64, federal *State, states *[51]*State) {
+func printResults(income *float64, federal *Federal, states *[51]*State) {
 	fmt.Printf("\n50-State income tax report for income of $%.0f\n", *income)
 	fmt.Println("    State                Tax       Effective Rate")
 	fmt.Println("==================================================")
@@ -1270,12 +1312,15 @@ func printResults(income *float64, federal *State, states *[51]*State) {
 	fmt.Println("==================================================")
 }
 
-func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*State) {
+func writeToCSV(income, capitalGains, dividends float64,
+	numSteps, numDependents int, federal *Federal, states *[51]*State, mfj, qualified bool) {
 	// create an array of incomes sliced into `numSteps` steps
-	incomeArray := *getIncomeArray(income, *numSteps)
+	incomeArray := *getIncomeArray(income, numSteps)
+	capitalGainsArray := *getIncomeArray(capitalGains, numSteps)
+	dividendsArray := *getIncomeArray(dividends, numSteps)
 
 	// create the 2D array at runtime with make()
-	data := make([][]string, *numSteps+1)
+	data := make([][]string, numSteps+1)
 	for i := range data {
 		data[i] = make([]string, 53)
 	}
@@ -1288,21 +1333,24 @@ func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*Sta
 		data[0][i+2] = (*states)[i].abbrev
 	}
 
-	for i := 0; i < *numSteps; i++ {
+	for i := 0; i < numSteps; i++ {
 		// add the income level for this row
 		data[i+1][0] = strconv.FormatFloat(incomeArray[i], 'f', 2, 32)
 
 		// add the federal effective rate for this income level
-		_, rate := federal.calcIncomeTax(&incomeArray[i])
+		// calcFederalIncomeTax(income, capitalGains, dividends *float64, mfj, qualified bool) (int, float64)
+		_, rate := federal.calcFederalIncomeTax(incomeArray[i], capitalGains, dividends, mfj, qualified)
 		data[i+1][1] = strconv.FormatFloat(rate, 'f', 6, 32)
 
 		// add all 50 States' + DC's effective rate for this income level
 		for j, state := range *states {
-			_, rate := state.calcIncomeTax(&incomeArray[i])
+			_, rate := state.calcIncomeTax(
+				&incomeArray[i], &capitalGainsArray[i], &dividendsArray[i],
+				federal.incomeTax, numDependents, mfj)
 			data[i+1][j+2] = strconv.FormatFloat(rate, 'f', 6, 32)
 		}
 	}
-	file, err := os.Create(fmt.Sprintf("./output/csv/income=%.0f_steps=%d.csv", *income, *numSteps))
+	file, err := os.Create(fmt.Sprintf("./output/csv/income=%.0f_steps=%d.csv", income, numSteps))
 	if err != nil {
 		panic(err)
 	}
@@ -1320,8 +1368,8 @@ func writeToCSV(income *float64, numSteps *int, federal *State, states *[51]*Sta
 	}
 }
 
-func getIncomeArray(income *float64, numSteps int) *[]float64 {
-	stepSize := *income / float64(numSteps)
+func getIncomeArray(income float64, numSteps int) *[]float64 {
+	stepSize := income / float64(numSteps)
 	incomes := make([]float64, numSteps)
 	for i := 0; i < numSteps; i++ {
 		incomes[i] = float64(stepSize * float64(i+1))
@@ -1329,24 +1377,50 @@ func getIncomeArray(income *float64, numSteps int) *[]float64 {
 	return &incomes
 }
 
-func (state *State) calcIncomeTax(income, capitalGains, dividends, federalTax *float64, mfj bool) (int, float64) {
-	taxableIncome := *income
-	tax := 0.0
+func (state *State) calcIncomeTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, *income
 	data := state.single
-	if mfj { // married filing jointly
+	if mfj {
 		data = state.couple
 	}
-	numBrackets := len(data.brackets)
+
+	dependentExemption := float64(state.dependentExemption * numDependents)
+	if state.dependentIsCredit {
+		// it's a direct credit. Subtract it from tax.
+		// a negative is okay for now because it gets
+		// checked in the second to last line of the func
+		tax -= dependentExemption
+	} else {
+		taxableIncome -= dependentExemption
+	}
+
+	if data.deductionIsCredit {
+		tax -= float64(data.standardDeduction)
+	} else {
+		taxableIncome -= float64(data.standardDeduction)
+	}
+
+	if data.exemptionIsCredit {
+		tax -= float64(data.personalExemption)
+	} else {
+		taxableIncome -= float64(data.personalExemption)
+	}
+
 	for i, val := range state.incomeTypesTaxed {
+		// this deciphers the incomeTypesTaxed array and ensures that income, CG, and dividends
+		// are correct for the given state after this runs.
 		if val < float32(0) {
+			// val is negative indicating a special case
 			switch i {
 			case 0:
 				// it's one of 6 states where federal tax can be deducted from state income
-				taxableIncome -= (*federalTax)
+				taxableIncome -= float64(federalTax)
 			case 1:
 				taxableIncome += (*capitalGains) * (1.0 - float64(val))
 			}
 		} else if val == float32(1) {
+			// val is 1, meaning the category is taxed the same as ordinary income
 			switch i {
 			case 1:
 				taxableIncome += (*capitalGains)
@@ -1354,7 +1428,8 @@ func (state *State) calcIncomeTax(income, capitalGains, dividends, federalTax *f
 				taxableIncome += (*dividends)
 			}
 		} else {
-			// there's a positive decimal value denoting the multiplier
+			// there's a positive decimal value denoting a multiplier.
+			// apply the multiple for the category and add it directly to the final tax.
 			switch i {
 			case 1:
 				// we add to `tax`, not `taxableIncome` because these rates are specific
@@ -1365,12 +1440,43 @@ func (state *State) calcIncomeTax(income, capitalGains, dividends, federalTax *f
 		}
 
 	}
-	for i, bracket := range data.brackets {
+	tax += taxEngine(&taxableIncome, &data.brackets, &data.rates)
+	tax = math.Max(0, tax) // assert tax >= 0
+	return int(tax), tax / float64(*income)
+}
+
+func (federal *Federal) calcFederalIncomeTax(
+	income, capitalGains, dividends float64,
+	mfj, qualified bool) (int, float64) {
+	tax := 0.0
+	data := federal.single
+	if mfj {
+		data = federal.couple
+	}
+	if qualified {
+		capitalGains += dividends
+	} else {
+		income += dividends
+	}
+	income -= float64(data.standardDeduction)
+	tax += income * federal.medicareRate
+	tax += taxEngine(&income, &data.incomeBrackets, &data.incomeRates)
+	tax += taxEngine(&capitalGains, &data.capitalGainsBrackets, &data.capitalGainsRates)
+	ssCappedIncome := math.Min(float64(federal.socialSecurityCap), income)
+	tax += ssCappedIncome * federal.socialSecurityRate
+	return int(tax), tax / float64(income)
+}
+
+func taxEngine(income *float64, brackets *[]int, rates *[]float64) float64 {
+	// todo take deductions and credits into account...
+	tax := 0.0
+	numBrackets := len(*brackets)
+	for i, bracket := range *brackets {
 		if i == numBrackets-1 {
-			tax += math.Max(0, *income-float64(bracket)) * state.rates[i]
+			tax += math.Max(0, (*income)-float64(bracket)) * (*rates)[i]
 		} else {
-			tax += math.Min(float64(state.brackets[i+1]-bracket), math.Max(0, *income-float64(bracket))) * state.rates[i]
+			tax += math.Min(float64((*brackets)[i+1]-bracket), math.Max(0, (*income)-float64(bracket))) * (*rates)[i]
 		}
 	}
-	return int(tax), tax / float64(*income)
+	return tax
 }
