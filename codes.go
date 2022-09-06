@@ -667,3 +667,9 @@ func calcNebraskaTax(income, capitalGains, dividends *float64,
 	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
 	return int(tax), tax / grossIncome
 }
+
+// No income tax of any kind
+func calcNevadaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	return 0, 0.0
+}
