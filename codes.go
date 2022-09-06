@@ -28,7 +28,7 @@ func calcAlabamaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
-	taxableIncome += (*dividends)    // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0, 500, 3000}
 	rates := []float64{0.02, 0.03, 0.05}
@@ -61,7 +61,7 @@ func calcArizonaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
-	taxableIncome += (*dividends)    // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0, 27808, 55615, 116843}
 	rates := []float64{0.0259, 0.0334, 0.0417, 0.045}
@@ -85,7 +85,7 @@ func calcArkansasTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) * 0.5 // 50% of gains are taxed as ordinary income
-	taxableIncome += (*dividends)          // gains are taxed as ordinary income
+	taxableIncome += (*dividends)          // dividends are taxed as ordinary income
 	grossIncome := taxableIncome           // capture gross income now
 	brackets := []int{0, 4300, 8500}
 	rates := []float64{0.02, 0.04, 0.055}
@@ -111,7 +111,7 @@ func calcCaliforniaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
-	taxableIncome += (*dividends)    // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0, 9325, 22107, 34892, 48435, 61214, 312686, 375221, 625369, 1000000}
 	rates := []float64{0.01, 0.02, 0.04, 0.06, 0.08, 0.093, 0.103, 0.113, 0.123, 0.133}
@@ -138,7 +138,7 @@ func calcColoradoTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
-	taxableIncome += (*dividends)    // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0}
 	rates := []float64{0.0455}
@@ -160,9 +160,9 @@ func calcColoradoTax(income, capitalGains, dividends *float64,
 func calcConnecticutTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
-	taxableIncome += (*capitalGains)            // gains are taxed as ordinary income
-	tax += 0.07 * (*dividends)                  // flat 7% tax on dividends
-	grossIncome := taxableIncome + (*dividends) // add dividends since it wasn't added above
+	tax += (*capitalGains) * 0.07                  // flat 7% tax on capital gains
+	taxableIncome += (*dividends)                  // dividends are taxed as ordinary income
+	grossIncome := taxableIncome + (*capitalGains) // add dividends since it wasn't added above
 	brackets := []int{0, 10000, 50000, 100000, 200000, 250000, 500000}
 	rates := []float64{0.03, 0.05, 0.055, 0.06, 0.065, 0.069, 0.0699}
 	personalExemption := 15000
@@ -183,7 +183,7 @@ func calcDelawareTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
-	taxableIncome += (*dividends)    // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{2000, 5000, 10000, 20000, 25000, 60000}
 	rates := []float64{0.022, 0.039, 0.048, 0.052, 0.0555, 0.066}
@@ -215,7 +215,7 @@ func calcGeorgiaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
 	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
-	taxableIncome += (*dividends)    // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0, 750, 2250, 3750, 5250, 7000}
 	rates := []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.0575}
@@ -226,6 +226,32 @@ func calcGeorgiaTax(income, capitalGains, dividends *float64,
 		brackets = []int{0, 1000, 3000, 5000, 7000, 10000}
 		standardDeduction = 7100
 		personalExemption = 7400
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+func calcHawaiiTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	tax += (*capitalGains) * 0.0725                //  flat 7.25% tax on gains
+	taxableIncome += (*dividends)                  // dividends are taxed as ordinary income
+	grossIncome := taxableIncome + (*capitalGains) // capture gross income now
+	brackets := []int{0, 2400, 4800, 9600, 14400, 19200, 24000, 36000, 48000, 150000, 175000, 200000}
+	rates := []float64{0.014, 0.032, 0.055, 0.064, 0.068, 0.072, 0.076, 0.079, 0.0825, 0.09, 0.1, 0.11}
+	dependentExemption := 1144
+	standardDeduction := 2200
+	personalExemption := 1144
+	if mfj {
+		brackets = []int{0, 4800, 9600, 19200, 28800, 38400, 48000, 72000, 96000, 300000, 350000, 400000}
+		standardDeduction = 4400
+		personalExemption = 2288
 	}
 
 	taxableIncome -= float64(numDependents * dependentExemption)
