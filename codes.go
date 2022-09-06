@@ -58,3 +58,28 @@ func calcAlaskaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	return 0, 0.0
 }
+
+func calcArizonaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += *capitalGains // gains are taxed as ordinary income
+	taxableIncome += *dividends    // gains are taxed as ordinary income
+	grossIncome := taxableIncome   // capture gross income now
+	brackets := []int{0, 27808, 55615, 116843}
+	rates := []float64{0.0259, 0.0334, 0.0417, 0.045}
+	dependentExemption := 100
+	standardDeduction := 12950
+	if mfj {
+		brackets = []int{0, 55615, 111229, 333684}
+		standardDeduction = 25900
+	}
+
+	// deductions
+	tax -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
+	return int(tax), tax / grossIncome
+}
