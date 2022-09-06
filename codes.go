@@ -558,8 +558,8 @@ func calcMinnesotaTax(income, capitalGains, dividends *float64,
 		standardDeduction = 25800
 	}
 
-	taxableIncome -= float64(standardDeduction)
 	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
 
 	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
@@ -583,11 +583,34 @@ func calcMississippiTax(income, capitalGains, dividends *float64,
 		personalExemption = 12000
 	}
 
-	taxableIncome -= float64(standardDeduction)
 	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
 
 	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
 
+// allows federal tax to be deducted up to $5000
+func calcMissouriTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets :=  []int{108, 1088, 2176, 3264, 4352, 5440, 6528, 7616, 8704}
+	rates := []float64{0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.054}
+	standardDeduction := 12950
+	if mfj {
+		standardDeduction = 25900
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= math.Min(5000, federalTax)  // $5000 deduction cap
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
