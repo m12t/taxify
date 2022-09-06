@@ -42,7 +42,7 @@ type FilingStatus struct {
 	exemptionIsCredit bool
 }
 
-func initializeStates(income, dividends, capitalGains *float64, numSteps *int, mfj bool) *[51]*State {
+func initializeStates(income, capitalGains, dividends *float64, numSteps *int, mfj bool) *[51]*State {
 	states := [51]*State{
 		{
 			name:               "Alabama",
@@ -1219,7 +1219,7 @@ func initializeStates(income, dividends, capitalGains *float64, numSteps *int, m
 		},
 	}
 	for _, state := range states {
-		tax, effectiveRate := state.calcIncomeTax(income, dividends, capitalGains)
+		tax, effectiveRate := state.calcIncomeTax(income, capitalGains, dividends)
 		state.incomeTax = tax
 		state.effectiveRate = effectiveRate
 	}
@@ -1329,14 +1329,43 @@ func getIncomeArray(income *float64, numSteps int) *[]float64 {
 	return &incomes
 }
 
-func (state *State) calcIncomeTax(income, dividends, capitalGains *float64, mfj bool) (int, float64) {
+func (state *State) calcIncomeTax(income, capitalGains, dividends, federalTax *float64, mfj bool) (int, float64) {
+	taxableIncome := *income
+	tax := 0.0
 	data := state.single
-	if mfj {
+	if mfj { // married filing jointly
 		data = state.couple
 	}
 	numBrackets := len(data.brackets)
-	tax := 0.0
-	for i, bracket := range state.brackets {
+	for i, val := range state.incomeTypesTaxed {
+		if val < float32(0) {
+			switch i {
+			case 0:
+				// it's one of 6 states where federal tax can be deducted from state income
+				taxableIncome -= (*federalTax)
+			case 1:
+				taxableIncome += (*capitalGains) * (1.0 - float64(val))
+			}
+		} else if val == float32(1) {
+			switch i {
+			case 1:
+				taxableIncome += (*capitalGains)
+			case 2:
+				taxableIncome += (*dividends)
+			}
+		} else {
+			// there's a positive decimal value denoting the multiplier
+			switch i {
+			case 1:
+				// we add to `tax`, not `taxableIncome` because these rates are specific
+				tax += (*capitalGains) * float64(val)
+			case 2:
+				tax += (*dividends) * float64(val)
+			}
+		}
+
+	}
+	for i, bracket := range data.brackets {
 		if i == numBrackets-1 {
 			tax += math.Max(0, *income-float64(bracket)) * state.rates[i]
 		} else {
