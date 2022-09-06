@@ -740,3 +740,27 @@ func calcNewMexicoTax(income, capitalGains, dividends *float64,
 	return int(tax), tax / grossIncome
 }
 
+
+func calcNewYorkTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 8500, 11700, 13900, 80650, 215400, 1077550, 5000000, 25000000}
+	rates := []float64{0.04, 0.045, 0.0525, 0.0585, 0.0625, 0.0685, 0.0965, 0.103, 0.109}
+	dependentExemption := 1000
+	standardDeduction := 8000
+	if mfj {
+		brackets = []int{0, 17150, 23600, 27900, 161550, 323200, 2155350, 5000000, 25000000}
+		standardDeduction = 16050
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
