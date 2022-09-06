@@ -18,15 +18,20 @@ import (
 )
 
 type State struct {
-	name              string
-	abbrev            string
-	dependent         int
-	dependentIsCredit bool
-	single            FilingStatus
-	couple            FilingStatus
-	effectiveRate     float64
-	incomeTax         int
+	name               string
+	abbrev             string
+	dependentExemption int
+	dependentIsCredit  bool
+	incomeTypesTaxed   []float32 // ** see below
+	single             FilingStatus
+	couple             FilingStatus
+	effectiveRate      float64
+	incomeTax          int
 }
+
+// ** {ordinary, capital gains, dividends/interest} *negative means special case
+// if ordinary is negative, it's one of 6 states that allow federal taxes to be deducted from state
+// if capital gains is negative, a deduction of x is applied to capital gains before adding it to income
 
 type FilingStatus struct {
 	brackets          []int
@@ -37,13 +42,14 @@ type FilingStatus struct {
 	exemptionIsCredit bool
 }
 
-func initializeStates(income *float64, numSteps *int) *[51]*State {
+func initializeStates(income, dividends, capitalGains *float64, numSteps *int, mfj bool) *[51]*State {
 	states := [51]*State{
 		{
-			name:              "Alabama",
-			abbrev:            "AL",
-			dependent:         1000,
-			dependentIsCredit: false,
+			name:               "Alabama",
+			abbrev:             "AL",
+			dependentExemption: 1000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{-1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 500, 3000},
 				rates:             []float64{0.02, 0.03, 0.05},
@@ -62,10 +68,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Alaska",
-			abbrev:            "AK",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Alaska",
+			abbrev:             "AK",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -84,10 +91,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Arizona",
-			abbrev:            "AZ",
-			dependent:         100,
-			dependentIsCredit: true,
+			name:               "Arizona",
+			abbrev:             "AZ",
+			dependentExemption: 100,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 27808, 55615, 116843},
 				rates:             []float64{0.0259, 0.0334, 0.0417, 0.045},
@@ -106,10 +114,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Arkansas",
-			abbrev:            "AR",
-			dependent:         29,
-			dependentIsCredit: true,
+			name:               "Arkansas",
+			abbrev:             "AR",
+			dependentExemption: 29,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, -0.5, 1.0}, // only 50% of capital gains are taxed
 			single: FilingStatus{
 				brackets:          []int{0, 4300, 8500},
 				rates:             []float64{0.02, 0.04, 0.055},
@@ -128,10 +137,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "California",
-			abbrev:            "CA",
-			dependent:         400,
-			dependentIsCredit: true,
+			name:               "California",
+			abbrev:             "CA",
+			dependentExemption: 400,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 9325, 22107, 34892, 48435, 61214, 312686, 375221, 625369, 1000000},
 				rates:             []float64{0.01, 0.02, 0.04, 0.06, 0.08, 0.093, 0.103, 0.113, 0.123, 0.133},
@@ -150,10 +160,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Colorado",
-			abbrev:            "CO",
-			dependent:         400,
-			dependentIsCredit: true,
+			name:               "Colorado",
+			abbrev:             "CO",
+			dependentExemption: 400,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0455},
@@ -172,10 +183,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Connecticut",
-			abbrev:            "CT",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Connecticut",
+			abbrev:             "CT",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 0.07, 1.0}, // flat rate of 7% on capital gains
 			single: FilingStatus{
 				brackets:          []int{0, 10000, 50000, 100000, 200000, 250000, 500000},
 				rates:             []float64{0.03, 0.05, 0.055, 0.06, 0.065, 0.069, 0.0699},
@@ -194,10 +206,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Delaware",
-			abbrev:            "DE",
-			dependent:         110,
-			dependentIsCredit: true,
+			name:               "Delaware",
+			abbrev:             "DE",
+			dependentExemption: 110,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{2000, 5000, 10000, 20000, 25000, 60000},
 				rates:             []float64{0.022, 0.039, 0.048, 0.052, 0.0555, 0.066},
@@ -216,10 +229,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Florida",
-			abbrev:            "FL",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Florida",
+			abbrev:             "FL",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -238,10 +252,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Georgia",
-			abbrev:            "GA",
-			dependent:         3000,
-			dependentIsCredit: false,
+			name:               "Georgia",
+			abbrev:             "GA",
+			dependentExemption: 3000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 750, 2250, 3750, 5250, 7000},
 				rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.0575},
@@ -260,10 +275,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Hawaii",
-			abbrev:            "HI",
-			dependent:         1144,
-			dependentIsCredit: false,
+			name:               "Hawaii",
+			abbrev:             "HI",
+			dependentExemption: 1144,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 0.0725, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 2400, 4800, 9600, 14400, 19200, 24000, 36000, 48000, 150000, 175000, 200000},
 				rates:             []float64{0.014, 0.032, 0.055, 0.064, 0.068, 0.072, 0.076, 0.079, 0.0825, 0.09, 0.1, 0.11},
@@ -282,10 +298,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Idaho",
-			abbrev:            "ID",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Idaho",
+			abbrev:             "ID",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 1588, 4763, 7939},
 				rates:             []float64{0.01, 0.03, 0.045, 0.06},
@@ -304,10 +321,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Illinois",
-			abbrev:            "IL",
-			dependent:         2375,
-			dependentIsCredit: false,
+			name:               "Illinois",
+			abbrev:             "IL",
+			dependentExemption: 2375,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0495},
@@ -326,10 +344,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Indiana",
-			abbrev:            "IN",
-			dependent:         1000,
-			dependentIsCredit: false,
+			name:               "Indiana",
+			abbrev:             "IN",
+			dependentExemption: 1000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0323},
@@ -348,10 +367,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Iowa",
-			abbrev:            "IA",
-			dependent:         40,
-			dependentIsCredit: true,
+			name:               "Iowa",
+			abbrev:             "IA",
+			dependentExemption: 40,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{-1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 1743, 3486, 6972, 15687, 26145, 34860, 52290, 78435},
 				rates:             []float64{0.0033, 0.0067, 0.0225, 0.0414, 0.0563, 0.0596, 0.0625, 0.0744, 0.0853},
@@ -370,10 +390,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Kansas",
-			abbrev:            "KS",
-			dependent:         2250,
-			dependentIsCredit: false,
+			name:               "Kansas",
+			abbrev:             "KS",
+			dependentExemption: 2250,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 15000, 30000},
 				rates:             []float64{0.031, 0.0525, 0.057},
@@ -392,10 +413,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Kentucky",
-			abbrev:            "KY",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Kentucky",
+			abbrev:             "KY",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.050},
@@ -414,10 +436,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Louisiana",
-			abbrev:            "LA",
-			dependent:         1000,
-			dependentIsCredit: false,
+			name:               "Louisiana",
+			abbrev:             "LA",
+			dependentExemption: 1000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{-1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 12500, 50000},
 				rates:             []float64{0.0185, 0.035, 0.0425},
@@ -436,10 +459,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Maine",
-			abbrev:            "ME",
-			dependent:         300,
-			dependentIsCredit: true,
+			name:               "Maine",
+			abbrev:             "ME",
+			dependentExemption: 300,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 23000, 54450},
 				rates:             []float64{0.058, 0.0675, 0.0715},
@@ -458,10 +482,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Maryland",
-			abbrev:            "MD",
-			dependent:         3200,
-			dependentIsCredit: false,
+			name:               "Maryland",
+			abbrev:             "MD",
+			dependentExemption: 3200,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 1000, 2000, 3000, 100000, 125000, 150000, 250000},
 				rates:             []float64{0.02, 0.03, 0.04, 0.0475, 0.05, 0.0525, 0.055, 0.0575},
@@ -480,10 +505,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Massachusetts",
-			abbrev:            "MA",
-			dependent:         1000,
-			dependentIsCredit: false,
+			name:               "Massachusetts",
+			abbrev:             "MA",
+			dependentExemption: 1000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.05},
@@ -502,10 +528,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Michigan",
-			abbrev:            "MI",
-			dependent:         5000,
-			dependentIsCredit: false,
+			name:               "Michigan",
+			abbrev:             "MI",
+			dependentExemption: 5000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0425},
@@ -524,10 +551,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Minnesota",
-			abbrev:            "MN",
-			dependent:         4450,
-			dependentIsCredit: false,
+			name:               "Minnesota",
+			abbrev:             "MN",
+			dependentExemption: 4450,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 28080, 92230, 171220},
 				rates:             []float64{0.0535, 0.068, 0.0785, 0.0985},
@@ -546,10 +574,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Mississippi",
-			abbrev:            "MS",
-			dependent:         1500,
-			dependentIsCredit: false,
+			name:               "Mississippi",
+			abbrev:             "MS",
+			dependentExemption: 1500,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{5000, 10000},
 				rates:             []float64{0.04, 0.05},
@@ -568,10 +597,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Missouri",
-			abbrev:            "MO",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Missouri",
+			abbrev:             "MO",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{-1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{108, 1088, 2176, 3264, 4352, 5440, 6528, 7616, 8704},
 				rates:             []float64{0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.054},
@@ -590,10 +620,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Montana",
-			abbrev:            "MT",
-			dependent:         2580,
-			dependentIsCredit: false,
+			name:               "Montana",
+			abbrev:             "MT",
+			dependentExemption: 2580,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{-1.0, 1.0, 1.0}, // 2% credit on capital gains (ignored for now)
 			single: FilingStatus{
 				brackets:          []int{0, 3100, 5500, 8400, 11400, 14600, 18800},
 				rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.0675},
@@ -612,10 +643,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Nebraska",
-			abbrev:            "NE",
-			dependent:         146,
-			dependentIsCredit: true,
+			name:               "Nebraska",
+			abbrev:             "NE",
+			dependentExemption: 146,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 3440, 20590, 33180},
 				rates:             []float64{0.0246, 0.0351, 0.0501, 0.0684},
@@ -634,10 +666,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Nevada",
-			abbrev:            "NV",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Nevada",
+			abbrev:             "NV",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -656,11 +689,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			// 5% on interest and dividends only - no way to account for this yet...
-			name:              "New Hampshire",
-			abbrev:            "NH",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "New Hampshire",
+			abbrev:             "NH",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.05},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -679,10 +712,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "New Jersey",
-			abbrev:            "NJ",
-			dependent:         1500,
-			dependentIsCredit: false,
+			name:               "New Jersey",
+			abbrev:             "NJ",
+			dependentExemption: 1500,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 20000, 35000, 40000, 75000, 500000, 1000000},
 				rates:             []float64{0.014, 0.0175, 0.035, 0.05525, 0.0637, 0.0897, 0.1075},
@@ -701,10 +735,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "New Mexico",
-			abbrev:            "NM",
-			dependent:         4000,
-			dependentIsCredit: false,
+			name:               "New Mexico",
+			abbrev:             "NM",
+			dependentExemption: 4000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, -0.4, 1.0}, // 40% deduction of capital gains
 			single: FilingStatus{
 				brackets:          []int{0, 5500, 11000, 16000, 210000},
 				rates:             []float64{0.017, 0.032, 0.047, 0.049, 0.059},
@@ -723,10 +758,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "New York",
-			abbrev:            "NY",
-			dependent:         1000,
-			dependentIsCredit: false,
+			name:               "New York",
+			abbrev:             "NY",
+			dependentExemption: 1000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 8500, 11700, 13900, 80650, 215400, 1077550, 5000000, 25000000},
 				rates:             []float64{0.04, 0.045, 0.0525, 0.0585, 0.0625, 0.0685, 0.0965, 0.103, 0.109},
@@ -745,10 +781,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "North Carolina",
-			abbrev:            "NC",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "North Carolina",
+			abbrev:             "NC",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0499},
@@ -767,10 +804,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "North Dakota",
-			abbrev:            "ND",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "North Dakota",
+			abbrev:             "ND",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, -0.4, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 40525, 98100, 204675, 445000},
 				rates:             []float64{0.011, 0.0204, 0.0227, 0.0264, 0.029},
@@ -789,10 +827,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Ohio",
-			abbrev:            "OH",
-			dependent:         2400,
-			dependentIsCredit: false,
+			name:               "Ohio",
+			abbrev:             "OH",
+			dependentExemption: 2400,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{25000, 44250, 88450, 110650},
 				rates:             []float64{0.02765, 0.03226, 0.03688, 0.0399},
@@ -811,10 +850,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Oklahoma",
-			abbrev:            "OK",
-			dependent:         1000,
-			dependentIsCredit: false,
+			name:               "Oklahoma",
+			abbrev:             "OK",
+			dependentExemption: 1000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 1000, 2500, 3750, 4900, 7200},
 				rates:             []float64{0.0025, 0.0075, 0.0175, 0.0275, 0.0375, 0.0475},
@@ -833,10 +873,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Oregon",
-			abbrev:            "OR",
-			dependent:         219,
-			dependentIsCredit: true,
+			name:               "Oregon",
+			abbrev:             "OR",
+			dependentExemption: 219,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{-1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 3650, 9200, 125000},
 				rates:             []float64{0.0475, 0.0675, 0.0875, 0.099},
@@ -855,10 +896,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Pennsylvania",
-			abbrev:            "PA",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Pennsylvania",
+			abbrev:             "PA",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0307},
@@ -877,10 +919,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Rhode Island",
-			abbrev:            "RI",
-			dependent:         4350,
-			dependentIsCredit: false,
+			name:               "Rhode Island",
+			abbrev:             "RI",
+			dependentExemption: 4350,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 68200, 155050},
 				rates:             []float64{0.0375, 0.0475, 0.0599},
@@ -899,10 +942,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "South Carolina",
-			abbrev:            "SC",
-			dependent:         4300,
-			dependentIsCredit: false,
+			name:               "South Carolina",
+			abbrev:             "SC",
+			dependentExemption: 4300,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, -0.44, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 3200, 6410, 9620, 12820, 16040},
 				rates:             []float64{0.0, 0.03, 0.04, 0.05, 0.06, 0.07},
@@ -921,10 +965,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "South Dakota",
-			abbrev:            "SD",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "South Dakota",
+			abbrev:             "SD",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -943,10 +988,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Tennessee",
-			abbrev:            "TN",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Tennessee",
+			abbrev:             "TN",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.06},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -965,10 +1011,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Texas",
-			abbrev:            "TX",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Texas",
+			abbrev:             "TX",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -987,10 +1034,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Utah",
-			abbrev:            "UT",
-			dependent:         1750,
-			dependentIsCredit: true,
+			name:               "Utah",
+			abbrev:             "UT",
+			dependentExemption: 1750,
+			dependentIsCredit:  true,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0495},
@@ -1009,10 +1057,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Vermont",
-			abbrev:            "VT",
-			dependent:         4350,
-			dependentIsCredit: false,
+			name:               "Vermont",
+			abbrev:             "VT",
+			dependentExemption: 4350,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0}, // there's a special case here too (ignored for now)
 			single: FilingStatus{
 				brackets:          []int{0, 40950, 99200, 206950},
 				rates:             []float64{0.0335, 0.066, 0.076, 0.0875},
@@ -1031,10 +1080,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Virginia",
-			abbrev:            "VA",
-			dependent:         930,
-			dependentIsCredit: false,
+			name:               "Virginia",
+			abbrev:             "VA",
+			dependentExemption: 930,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 3000, 5000, 17000},
 				rates:             []float64{0.02, 0.03, 0.05, 0.0575},
@@ -1053,11 +1103,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			// 7% on capital gains
-			name:              "Washington",
-			abbrev:            "WA",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Washington",
+			abbrev:             "WA",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.07, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -1076,10 +1126,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "West Virginia",
-			abbrev:            "WV",
-			dependent:         2000,
-			dependentIsCredit: false,
+			name:               "West Virginia",
+			abbrev:             "WV",
+			dependentExemption: 2000,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 10000, 25000, 40000, 60000},
 				rates:             []float64{0.03, 0.04, 0.045, 0.06, 0.065},
@@ -1098,10 +1149,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Wisconsin",
-			abbrev:            "WI",
-			dependent:         700,
-			dependentIsCredit: false,
+			name:               "Wisconsin",
+			abbrev:             "WI",
+			dependentExemption: 700,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 12760, 25520, 280950},
 				rates:             []float64{0.0354, 0.0465, 0.053, 0.0765},
@@ -1120,10 +1172,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Wyoming",
-			abbrev:            "WY",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Wyoming",
+			abbrev:             "WY",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{0.0, 0.0, 0.0},
 			single: FilingStatus{
 				brackets:          []int{0},
 				rates:             []float64{0.0},
@@ -1142,10 +1195,11 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 			},
 		},
 		{
-			name:              "Washington D.C.",
-			abbrev:            "DC",
-			dependent:         0,
-			dependentIsCredit: false,
+			name:               "Washington D.C.",
+			abbrev:             "DC",
+			dependentExemption: 0,
+			dependentIsCredit:  false,
+			incomeTypesTaxed:   []float32{1.0, 1.0, 1.0},
 			single: FilingStatus{
 				brackets:          []int{0, 10000, 40000, 60000, 250000, 500000, 1000000},
 				rates:             []float64{0.04, 0.06, 0.065, 0.085, 0.0925, 0.0975, 0.1075},
@@ -1165,7 +1219,7 @@ func initializeStates(income *float64, numSteps *int) *[51]*State {
 		},
 	}
 	for _, state := range states {
-		tax, effectiveRate := state.calcIncomeTax(income)
+		tax, effectiveRate := state.calcIncomeTax(income, dividends, capitalGains)
 		state.incomeTax = tax
 		state.effectiveRate = effectiveRate
 	}
@@ -1275,8 +1329,12 @@ func getIncomeArray(income *float64, numSteps int) *[]float64 {
 	return &incomes
 }
 
-func (state *State) calcIncomeTax(income *float64) (int, float64) {
-	numBrackets := len(state.brackets)
+func (state *State) calcIncomeTax(income, dividends, capitalGains *float64, mfj bool) (int, float64) {
+	data := state.single
+	if mfj {
+		data = state.couple
+	}
+	numBrackets := len(data.brackets)
 	tax := 0.0
 	for i, bracket := range state.brackets {
 		if i == numBrackets-1 {
