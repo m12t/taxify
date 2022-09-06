@@ -713,3 +713,30 @@ func calcNewJerseyTax(income, capitalGains, dividends *float64,
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
+
+
+// allows a deduction for 40% of capital gains
+func calcNewMexicoTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 5500, 11000, 16000, 210000}
+	rates := []float64{0.017, 0.032, 0.047, 0.049, 0.059}
+	dependentExemption := 4000
+	standardDeduction := 12950
+	if mfj {
+		brackets = []int{0, 8000, 16000, 24000, 315000}
+		standardDeduction = 25900
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= math.Max(1000, (*capitalGains) * 0.4)  // greater of 1000, 40% of gains
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
