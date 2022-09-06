@@ -1350,7 +1350,11 @@ func writeToCSV(income, capitalGains, dividends float64,
 			data[i+1][j+2] = strconv.FormatFloat(rate, 'f', 6, 32)
 		}
 	}
-	file, err := os.Create(fmt.Sprintf("./output/csv/income=%.0f_steps=%d.csv", income, numSteps))
+	// filenames are getting long... could use some encoding to reduce this... md5 checksum?
+	filename := fmt.Sprintf(
+		"./output/csv/income=%.0f_cg=%.0f_dividends=%.0f_qualified=%t_dependents=%d_mfj=%t_steps=%d.csv",
+		income, capitalGains, dividends, qualified, numDependents, mfj, numSteps)
+	file, err := os.Create(filename)
 	if err != nil {
 		panic(err)
 	}
