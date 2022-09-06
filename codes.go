@@ -470,3 +470,30 @@ func calcMaineTax(income, capitalGains, dividends *float64,
 	tax = math.Max(0, tax)
 	return int(tax), tax / grossIncome
 }
+
+
+func calcMarylandTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets :=  []int{0, 1000, 2000, 3000, 100000, 125000, 150000, 250000}
+	rates := []float64{0.02, 0.03, 0.04, 0.0475, 0.05, 0.0525, 0.055, 0.0575}
+	dependentExemption := 3200
+	standardDeduction := 2350
+	personalExemption := 3200
+	if mfj {
+		brackets = []int{0, 1000, 2000, 3000, 150000, 175000, 225000, 300000}
+		standardDeduction = 4700
+		personalExemption = 6400
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
