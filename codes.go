@@ -397,3 +397,48 @@ func calcKentuckyTax(income, capitalGains, dividends *float64,
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
+{
+	name:                 "Louisiana",
+	abbrev:               "LA",
+	dependentExemption:   1000,
+	dependentIsCredit:    false,
+	stdDeductionIsCredit: false,
+	exemptionIsCredit:    false,
+	incomeTypesTaxed:     []float32{1.0, 1.0, 1.0},
+	single: FilingStatus{
+		brackets:          []int{0, 12500, 50000},
+		rates:             []float64{0.0185, 0.035, 0.0425},
+		standardDeduction: 0,
+		personalExemption: 4500,
+	},
+	couple: FilingStatus{
+		brackets:          []int{0, 25000, 100000},
+		rates:             []float64{0.0185, 0.035, 0.0425},
+		standardDeduction: 0,
+		personalExemption: 9000,
+	},
+},
+
+// repealed the federal tax deduction
+func calcLouisianaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets :=  []int{0, 12500, 50000}
+	rates := []float64{0.0185, 0.035, 0.0425}
+	dependentExemption := 1000
+	personalExemption := 4500
+	if mfj {
+		brackets = []int{0, 25000, 100000}
+		personalExemption = 9000
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
