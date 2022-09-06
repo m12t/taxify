@@ -706,7 +706,7 @@ func calcNewJerseyTax(income, capitalGains, dividends *float64,
 		personalExemption = 2000
 	}
 
-	taxableIncome -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	taxableIncome -= float64(numDependents * dependentExemption)
 	taxableIncome -= float64(personalExemption)
 
 	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
@@ -731,7 +731,7 @@ func calcNewMexicoTax(income, capitalGains, dividends *float64,
 		standardDeduction = 25900
 	}
 
-	taxableIncome -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	taxableIncome -= float64(numDependents * dependentExemption)
 	taxableIncome -= float64(standardDeduction)
 	taxableIncome -= math.Max(1000, (*capitalGains) * 0.4)  // greater of 1000, 40% of gains
 
@@ -764,3 +764,46 @@ func calcNewYorkTax(income, capitalGains, dividends *float64,
 	return int(tax), tax / grossIncome
 }
 
+
+
+func calcNorthCarolinaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0}
+	rates := []float64{0.0499}
+	standardDeduction := 12750
+	if mfj {
+		standardDeduction = 25500
+	}
+
+	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+// allows a deduction for 40% of capital gains
+func calcNorthDakotaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) * 0.6 // 40% deduction, taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 40525, 98100, 204675, 445000}
+	rates := []float64{0.011, 0.0204, 0.0227, 0.0264, 0.029}
+	standardDeduction := 12950
+	if mfj {
+		brackets = []int{0, 67700, 163550, 249150, 445000}
+		standardDeduction = 25900
+	}
+
+	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
