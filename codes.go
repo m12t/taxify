@@ -673,3 +673,18 @@ func calcNevadaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	return 0, 0.0
 }
+
+// 5% flat tax on divident income
+func calcNevadaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	grossIncome := (*income) + (*capitalGains) + (*dividends)
+	taxableIncome := (*dividends)
+	personalExemption := 2400
+	if mfj {
+		personalExemption = 4800
+	}
+	taxableIncome -= personalExemption
+	taxableIncome = math.Max(0, taxableIncome)  // assert >= 0
+	tax := taxableIncome * 0.05
+	return int(tax), tax / grossIncome
+}
