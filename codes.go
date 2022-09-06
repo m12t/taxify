@@ -688,3 +688,28 @@ func calcNevadaTax(income, capitalGains, dividends *float64,
 	tax := taxableIncome * 0.05
 	return int(tax), tax / grossIncome
 }
+
+
+func calcNewJerseyTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 20000, 35000, 40000, 75000, 500000, 1000000}
+	rates := []float64{0.014, 0.0175, 0.035, 0.05525, 0.0637, 0.0897, 0.1075}
+	dependentExemption := 1500
+	personalExemption := 1000
+	if mfj {
+		brackets = []int{0, 20000, 50000, 70000, 80000, 150000, 500000, 1000000}
+		rates = []float64{0.014, 0.0175, 0.0245, 0.035, 0.05525, 0.0637, 0.0897, 0.1075}
+		personalExemption = 2000
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
