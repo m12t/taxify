@@ -591,27 +591,27 @@ func initializeStates(income, capitalGains, dividends *float64,
 		// 		personalExemption: 0,
 		// 	},
 		// },
-		{
-			name:                 "Montana",
-			abbrev:               "MT",
-			dependentExemption:   2580,
-			dependentIsCredit:    false,
-			stdDeductionIsCredit: false,
-			exemptionIsCredit:    false,
-			incomeTypesTaxed:     []float32{1.0, 1.0, 1.0}, // 2% credit on capital gains (ignored for now)
-			single: FilingStatus{
-				brackets:          []int{0, 3100, 5500, 8400, 11400, 14600, 18800},
-				rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.0675},
-				standardDeduction: 4830,
-				personalExemption: 2580,
-			},
-			couple: FilingStatus{
-				brackets:          []int{0, 3100, 5500, 8400, 11400, 14600, 18800},
-				rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.0675},
-				standardDeduction: 9660,
-				personalExemption: 5160,
-			},
-		},
+		// {
+		// 	name:                 "Montana",
+		// 	abbrev:               "MT",
+		// 	dependentExemption:   2580,
+		// 	dependentIsCredit:    false,
+		// 	stdDeductionIsCredit: false,
+		// 	exemptionIsCredit:    false,
+		// 	incomeTypesTaxed:     []float32{1.0, 1.0, 1.0}, // 2% credit on capital gains (ignored for now)
+		// 	single: FilingStatus{
+		// 		brackets:          []int{0, 3100, 5500, 8400, 11400, 14600, 18800},
+		// 		rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.0675},
+		// 		standardDeduction: 4830,
+		// 		personalExemption: 2580,
+		// 	},
+		// 	couple: FilingStatus{
+		// 		brackets:          []int{0, 3100, 5500, 8400, 11400, 14600, 18800},
+		// 		rates:             []float64{0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.0675},
+		// 		standardDeduction: 9660,
+		// 		personalExemption: 5160,
+		// 	},
+		// },
 		{
 			name:                 "Nebraska",
 			abbrev:               "NE",
