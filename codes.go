@@ -352,3 +352,29 @@ func calcIowaTax(income, capitalGains, dividends *float64,
 	tax = math.Max(0, tax)
 	return int(tax), tax / grossIncome
 }
+
+func calcKansasTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 15000, 30000}
+	rates := []float64{0.031, 0.0525, 0.057}
+	dependentExemption := 2250
+	standardDeduction := 3500
+	personalExemption := 2250
+	if mfj {
+		brackets = []int{0, 30000, 60000}
+		standardDeduction = 8000
+		personalExemption = 4500
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
