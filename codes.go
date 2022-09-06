@@ -111,7 +111,7 @@ func calcArkansasTax(income, capitalGains, dividends *float64,
 func calcCaliforniaTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
-	taxableIncome += (*capitalGains) // 50% of gains are taxed as ordinary income
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
 	taxableIncome += (*dividends)    // gains are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0, 9325, 22107, 34892, 48435, 61214, 312686, 375221, 625369, 1000000}
@@ -138,7 +138,7 @@ func calcCaliforniaTax(income, capitalGains, dividends *float64,
 func calcColoradoTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	tax, taxableIncome := 0.0, (*income)
-	taxableIncome += (*capitalGains) // 50% of gains are taxed as ordinary income
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
 	taxableIncome += (*dividends)    // gains are taxed as ordinary income
 	grossIncome := taxableIncome     // capture gross income now
 	brackets := []int{0}
@@ -151,6 +151,28 @@ func calcColoradoTax(income, capitalGains, dividends *float64,
 
 	tax -= float64(numDependents * dependentExemption) // is a credit, not a deduction
 	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
+	return int(tax), tax / grossIncome
+}
+
+func calcConnecticutTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains)            // gains are taxed as ordinary income
+	tax += 0.07 * (*dividends)                  // flat 7% tax on dividends
+	grossIncome := taxableIncome + (*dividends) // add dividends since it wasn't added above
+	brackets := []int{0, 10000, 50000, 100000, 200000, 250000, 500000}
+	rates := []float64{0.03, 0.05, 0.055, 0.06, 0.065, 0.069, 0.0699}
+	personalExemption := 15000
+	if mfj {
+		brackets = []int{0, 20000, 100000, 200000, 400000, 500000, 1000000}
+		personalExemption = 24000
+	}
+
+	taxableIncome -= float64(personalExemption)
 
 	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
