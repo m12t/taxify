@@ -175,7 +175,6 @@ func calcConnecticutTax(income, capitalGains, dividends *float64,
 
 	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
-	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
 	return int(tax), tax / grossIncome
 }
 
@@ -323,5 +322,33 @@ func calcIndianaTax(income, capitalGains, dividends *float64,
 
 	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+// allows federal tax deduction. Released for 2023?
+func calcIowaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 1743, 3486, 6972, 15687, 26145, 34860, 52290, 78435}
+	rates := []float64{0.0033, 0.0067, 0.0225, 0.0414, 0.0563, 0.0596, 0.0625, 0.0744, 0.0853}
+	dependentExemption := 40
+	standardDeduction := 2210
+	personalExemption := 40
+	if mfj {
+		standardDeduction = 5450
+		personalExemption = 80
+	}
+
+	tax -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	tax -= float64(personalExemption)
+	taxableIncome -= float64(federalTax)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	tax = math.Max(0, tax)
 	return int(tax), tax / grossIncome
 }
