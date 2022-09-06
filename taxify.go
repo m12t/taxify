@@ -38,6 +38,10 @@ type State struct {
 	incomeTax            int
 }
 
+// *[1] {ordinary, capital gains, dividends/interest} *negative means special case
+// if ordinary is negative, it's one of 6 states that allow federal taxes to be deducted from state
+// if capital gains is negative, a deduction of x is applied to capital gains before adding it to taxableIncome
+
 type FedFilingStatus struct {
 	// if dividends are qualified, they get added to capital gains instead of income
 	incomeBrackets       []int
@@ -52,16 +56,12 @@ type Federal struct {
 	abbrev             string
 	medicareRate       float64 // 0.0145
 	socialSecurityRate float64 // 0.062
-	socialSecurityCap  int     // $147,000 of income == $9114 collected
+	socialSecurityCap  int     // $147,000
 	single             FedFilingStatus
 	couple             FedFilingStatus
 	effectiveRate      float64
 	incomeTax          int
 }
-
-// [1] {ordinary, capital gains, dividends/interest} *negative means special case
-// if ordinary is negative, it's one of 6 states that allow federal taxes to be deducted from state
-// if capital gains is negative, a deduction of x is applied to capital gains before adding it to income
 
 func initializeStates(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) *[51]*State {
@@ -1282,7 +1282,7 @@ func getIncomeArray(income float64, numSteps int) *[]float64 {
 
 func (state *State) calcIncomeTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
-	tax, taxableIncome := 0.0, *income
+	tax, taxableIncome, grossIncome := 0.0, (*income), ((*income) + (*capitalGains) + (*dividends))
 	data := state.single
 	if mfj {
 		data = state.couple
@@ -1341,12 +1341,10 @@ func (state *State) calcIncomeTax(income, capitalGains, dividends *float64,
 				tax += (*dividends) * float64(val)
 			}
 		}
-
 	}
-	fmt.Printf("income: %.0f for the state %s\n", taxableIncome, state.name)
 	tax += taxEngine(&taxableIncome, &data.brackets, &data.rates)
 	tax = math.Max(0, tax) // assert tax >= 0
-	return int(tax), tax / float64(*income)
+	return int(tax), tax / grossIncome
 }
 
 func (federal *Federal) calcFederalIncomeTax(
@@ -1362,13 +1360,15 @@ func (federal *Federal) calcFederalIncomeTax(
 	} else {
 		income += dividends
 	}
+	grossIncome := income + capitalGains + dividends
 	income -= float64(data.standardDeduction)
+	income = math.Max(0.0, income)
 	tax += income * federal.medicareRate
 	tax += taxEngine(&income, &data.incomeBrackets, &data.incomeRates)
 	tax += taxEngine(&capitalGains, &data.capitalGainsBrackets, &data.capitalGainsRates)
 	ssCappedIncome := math.Min(float64(federal.socialSecurityCap), income)
 	tax += ssCappedIncome * federal.socialSecurityRate
-	return int(tax), tax / float64(income)
+	return int(tax), tax / grossIncome
 }
 
 func taxEngine(income *float64, brackets *[]int, rates *[]float64) float64 {
