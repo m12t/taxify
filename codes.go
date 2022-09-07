@@ -650,7 +650,7 @@ func calcNevadaTax(income, capitalGains, dividends *float64,
 	return 0, 0.0
 }
 
-// 5% flat tax on divident income
+// 5% flat tax on dividend income
 func calcNewHampshireTax(income, capitalGains, dividends *float64,
 	federalTax, numDependents int, mfj bool) (int, float64) {
 	grossIncome := (*income) + (*capitalGains) + (*dividends)
@@ -954,5 +954,142 @@ func calcUtahTax(income, capitalGains, dividends *float64,
 
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
+	return int(tax), tax / grossIncome
+}
+
+func calcVermontTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 40950, 99200, 206950}
+	rates := []float64{0.0335, 0.066, 0.076, 0.0875}
+	dependentExemption := 4350
+	standardDeduction := 6350
+	personalExemption := 4350
+	if mfj {
+		brackets = []int{0, 68400, 165350, 251950}
+		standardDeduction = 12700
+		personalExemption = 8700
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+func calcVirginiaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 3000, 5000, 17000}
+	rates := []float64{0.02, 0.03, 0.05, 0.0575}
+	dependentExemption := 930
+	standardDeduction := 4500
+	personalExemption := 930
+	if mfj {
+		standardDeduction = 9000
+		personalExemption = 1860
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+// 7% flat tax on capital gains
+func calcWashingtonTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	grossIncome := (*income) + (*capitalGains) + (*dividends)
+	taxableIncome := (*capitalGains)
+	standardDeduction := 250000
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome = math.Max(0, taxableIncome) // assert >= 0
+	tax := taxableIncome * 0.07
+	return int(tax), tax / grossIncome
+}
+
+func calcWestVirginiaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 10000, 25000, 40000, 60000}
+	rates := []float64{0.03, 0.04, 0.045, 0.06, 0.065}
+	dependentExemption := 2000
+	personalExemption := 2000
+	if mfj {
+		personalExemption = 4000
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+func calcWisconsinTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 12760, 25520, 280950}
+	rates := []float64{0.0354, 0.0465, 0.053, 0.0765}
+	dependentExemption := 700
+	standardDeduction := 11790
+	personalExemption := 700
+	if mfj {
+		brackets = []int{0, 17010, 34030, 374030}
+		standardDeduction = 21820
+		personalExemption = 1400
+	}
+
+	taxableIncome -= float64(numDependents * dependentExemption)
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome -= float64(personalExemption)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	return int(tax), tax / grossIncome
+}
+
+// No income tax of any kind
+func calcWyomingTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	return 0, 0.0
+}
+
+func calcDCTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0, 10000, 40000, 60000, 250000, 500000, 1000000}
+	rates := []float64{0.04, 0.06, 0.065, 0.085, 0.0925, 0.0975, 0.1075}
+	standardDeduction := 12950
+	if mfj {
+		standardDeduction = 25900
+	}
+
+	taxableIncome -= float64(standardDeduction)
+
+	taxableIncome = math.Max(0, taxableIncome) // assert taxableIncome >= 0
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
