@@ -18,7 +18,43 @@ func taxEngine(income *float64, brackets *[]int, rates *[]float64) float64 {
 	return tax
 }
 
-/* --------------------- state codes --------------------- */
+/* --------------------- federal tax code --------------------- */
+
+func calcFederalTax(
+	income, capitalGains, dividends float64,
+	mfj, qualified bool) (int, float64) {
+	medicareRate := 0.0145
+	socialSecurityRate := 0.062
+	socialSecurityCap := 147000
+	ordinaryBrackets := []int{0, 10275, 41775, 89075, 170050, 215950, 539900}
+	ordinaryRates := []float64{0.10, 0.12, 0.22, 0.24, 0.32, 0.35, 0.37}
+	capitalGainsBrackets := []int{0, 41675, 459750}
+	capitalGainsRates := []float64{0.0, 0.15, 0.20}
+	standardDeduction := 12950
+	if mfj {
+		ordinaryBrackets = []int{0, 20550, 83550, 178150, 340100, 431900, 647850}
+		capitalGainsBrackets = []int{0, 83350, 517200}
+		standardDeduction = 25900
+	}
+	if qualified {
+		capitalGains += dividends
+	} else {
+		income += dividends
+	}
+	tax := 0.0
+	taxableIncome := income + capitalGains + dividends
+	grossIncome := taxableIncome // freeze grossIncome now
+	taxableIncome -= float64(standardDeduction)
+	taxableIncome = math.Max(0.0, taxableIncome)
+	tax += taxableIncome * medicareRate
+	tax += taxEngine(&income, &ordinaryBrackets, &ordinaryRates)
+	tax += taxEngine(&capitalGains, &capitalGainsBrackets, &capitalGainsRates)
+	ssCappedIncome := math.Min(float64(socialSecurityCap), taxableIncome)
+	tax += ssCappedIncome * socialSecurityRate
+	return int(tax), tax / grossIncome
+}
+
+/* --------------------- state tax codes --------------------- */
 
 // Resources:
 // https://itep.sfo2.digitaloceanspaces.com/pb51fedinc.pdf
