@@ -916,3 +916,43 @@ func calcSouthCarolinaTax(income, capitalGains, dividends *float64,
 	tax += taxEngine(&taxableIncome, &brackets, &rates)
 	return int(tax), tax / grossIncome
 }
+
+// No income tax of any kind
+func calcSouthDakotaTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	return 0, 0.0
+}
+
+// No income tax of any kind
+func calcTennesseeTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	return 0, 0.0
+}
+
+// No income tax of any kind
+func calcTexasTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	return 0, 0.0
+}
+
+func calcUtahTax(income, capitalGains, dividends *float64,
+	federalTax, numDependents int, mfj bool) (int, float64) {
+	tax, taxableIncome := 0.0, (*income)
+	taxableIncome += (*capitalGains) // gains are taxed as ordinary income
+	taxableIncome += (*dividends)    // dividends are taxed as ordinary income
+	grossIncome := taxableIncome     // capture gross income now
+	brackets := []int{0}
+	rates := []float64{0.0495}
+	dependentExemption := 1750
+	standardDeduction := 777
+	if mfj {
+		standardDeduction = 1554
+	}
+
+	tax -= float64(numDependents * dependentExemption) // is a credit, not a deduction
+	tax -= float64(standardDeduction)
+
+	tax += taxEngine(&taxableIncome, &brackets, &rates)
+	tax = math.Max(0, tax) // assert tax >= 0. the dependent credit may cause it to be negative
+	return int(tax), tax / grossIncome
+}
