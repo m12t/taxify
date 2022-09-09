@@ -1,4 +1,7 @@
 # a 50-State-at-once tax calculator
+
+### [WARNING: THESE DOCS ARE OUTDATED]
+
 * This is a simple CLI tool for calculating state income tax in all 50 states at once for a given taxable income.
 * To run the program, either build it beforehand and call the executable, or simply run: `go run taxify.go -income=xxxxxx`
 * Results are returned in descending order by default, though this can be reversed by invoking the flag `-ascending=true`
